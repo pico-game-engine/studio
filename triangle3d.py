@@ -3,14 +3,15 @@ from helpers.color import DEFAULT_COLOR
 
 
 class Triangle3D:
-    """A single 3D triangle with position and color."""
-    __slots__ = ('x1', 'y1', 'z1', 'x2', 'y2', 'z2', 'x3', 'y3', 'z3', 'color')
+    """A single 3D triangle with position, color, and wireframe flag."""
+    __slots__ = ('x1', 'y1', 'z1', 'x2', 'y2', 'z2', 'x3', 'y3', 'z3', 'color', 'wireframe')
 
     def __init__(self, x1: float, y1: float, z1: float,
                  x2: float, y2: float, z2: float,
                  x3: float, y3: float, z3: float,
-                 color: int = DEFAULT_COLOR):
-        """Store three vertices and an optional color."""
+                 color: int = DEFAULT_COLOR,
+                 wireframe: bool = True):
+        """Store three vertices, color, and wireframe flag."""
         self.x1 = x1
         self.y1 = y1
         self.z1 = z1
@@ -21,6 +22,7 @@ class Triangle3D:
         self.y3 = y3
         self.z3 = z3
         self.color = color
+        self.wireframe = wireframe
 
     def get_center(self) -> Tuple[float, float, float]:
         """Return the centroid of the triangle."""
