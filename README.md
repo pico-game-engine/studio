@@ -6,7 +6,7 @@ A simple python game engine studio for creating 3D sprites for the Pico Game Eng
 - 3D viewer to visualize sprites.
 - Creator tab with a palette of objects to create sprites with, and a list of created sprites to edit or delete.
 - Sprite presets created from previous Pico Game Engine games.
-- Export sprite code to be used in the Pico Game Engine (C++ header).
+- Export sprites as C++ headers or .sprite3d files to be used in the Pico Game Engine.
 
 ## Installation
 1. Clone the repository:
