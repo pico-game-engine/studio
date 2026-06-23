@@ -1,7 +1,7 @@
 import math
 import struct
 from typing import List, Optional, Tuple
-from helpers.color import DEFAULT_COLOR, shade_tint
+from helpers.color import DEFAULT_COLOR, shade_tint, rgb565_to_rgb888, rgb888_to_rgb565
 from triangle3d import Triangle3D
 
 MAX_TRIANGLES_PER_SPRITE = 128
@@ -262,7 +262,7 @@ class Sprite3D:
                         True,
                         0.0,
                         True,
-                        t.color,
+                        rgb888_to_rgb565(t.color),
                         t.wireframe,
                     )
                     f.write(data)
@@ -283,7 +283,8 @@ class Sprite3D:
                         break
                     (x1, y1, z1, x2, y2, z2, x3, y3, z3,
                      _visible, _distance, _set, color, wireframe) = _TRI3D_STRUCT.unpack(data)
-                    sprite.add_triangle(x1, y1, z1, x2, y2, z2, x3, y3, z3, color,
+                    sprite.add_triangle(x1, y1, z1, x2, y2, z2, x3, y3, z3,
+                                        rgb565_to_rgb888(color),
                                         bool(wireframe))
         except OSError as e:
             print(f'Sprite3D.from_sprite3d_file: {e}')
