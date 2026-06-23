@@ -1,9 +1,13 @@
 import math
+import struct
 from typing import List, Optional, Tuple
 from helpers.color import DEFAULT_COLOR, shade_tint
 from triangle3d import Triangle3D
 
 MAX_TRIANGLES_PER_SPRITE = 128
+
+# 9 floats + bool + 3pad + float + bool + 1pad + uint16 + bool + 3pad = 52 bytes
+_TRI3D_STRUCT = struct.Struct('<9f B 3x f B x H B 3x')
 
 
 class Sprite3D:
@@ -49,12 +53,13 @@ class Sprite3D:
     def add_triangle(self, x1: float, y1: float, z1: float,
                      x2: float, y2: float, z2: float,
                      x3: float, y3: float, z3: float,
-                     color: Optional[int] = None):
-        """Add a triangle with optional per-triangle color."""
+                     color: Optional[int] = None,
+                     wireframe: bool = True):
+        """Add a triangle with optional per-triangle color and wireframe flag."""
         if len(self.triangles) >= MAX_TRIANGLES_PER_SPRITE:
             return
         c = color if color is not None else self._current_color
-        self.triangles.append(Triangle3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, c))
+        self.triangles.append(Triangle3D(x1, y1, z1, x2, y2, z2, x3, y3, z3, c, wireframe))
 
     def _transform_vertex(self, x: float, y: float, z: float) -> Tuple[float, float, float]:
         """Apply scale, rotation, and position transforms."""
@@ -82,7 +87,7 @@ class Sprite3D:
             result.append(Triangle3D(v1[0], v1[1], v1[2],
                                      v2[0], v2[1], v2[2],
                                      v3[0], v3[1], v3[2],
-                                     t.color))
+                                     t.color, t.wireframe))
         return result
 
     def get_aabb(self) -> Tuple[float, float, float, float, float, float]:
@@ -243,3 +248,50 @@ class Sprite3D:
         self._cylinder(0, height / 2, 0, pr, height, 6, 0xccbbaa)
         self._cylinder(0, pr * 0.4, 0, pr * 1.4, pr * 0.8, 4, 0xbbaa99)
         self._cylinder(0, height - pr * 0.4, 0, pr * 1.4, pr * 0.8, 4, 0xbbaa99)
+
+    # .sprite3d binary import/export
+
+    def to_sprite3d_file(self, filepath: str) -> bool:
+        """Write all triangles to a .sprite3d binary file (raw Triangle3D structs)."""
+        try:
+            with open(filepath, 'wb') as f:
+                for t in self.triangles:
+                    data = _TRI3D_STRUCT.pack(
+                        t.x1, t.y1, t.z1, t.x2, t.y2, t.z2,
+                        t.x3, t.y3, t.z3,
+                        True,
+                        0.0,
+                        True,
+                        t.color,
+                        t.wireframe,
+                    )
+                    f.write(data)
+            return True
+        except OSError as e:
+            print(f'Sprite3D.to_sprite3d_file: {e}')
+            return False
+
+    @staticmethod
+    def from_sprite3d_file(filepath: str) -> Optional['Sprite3D']:
+        """Create a Sprite3D from a .sprite3d binary file. Returns None on failure."""
+        sprite = Sprite3D()
+        try:
+            with open(filepath, 'rb') as f:
+                while True:
+                    data = f.read(52)
+                    if len(data) < 52:
+                        break
+                    (x1, y1, z1, x2, y2, z2, x3, y3, z3,
+                     _visible, _distance, _set, color, wireframe) = _TRI3D_STRUCT.unpack(data)
+                    sprite.add_triangle(x1, y1, z1, x2, y2, z2, x3, y3, z3, color,
+                                        bool(wireframe))
+        except OSError as e:
+            print(f'Sprite3D.from_sprite3d_file: {e}')
+            return None
+        if sprite.get_triangle_count() == 0:
+            return None
+        # Derive name from filename
+        import os
+        base = os.path.splitext(os.path.basename(filepath))[0]
+        sprite.name = base
+        return sprite

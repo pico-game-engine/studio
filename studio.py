@@ -1075,10 +1075,11 @@ class Studio(ctk.CTk):
         for s in self.sprites:
             for t in s.triangles:
                 hex_str = f'0x{t.color:06x}'
+                wf_str = str(t.wireframe)
                 lines.append(
                     f'sprite.add_triangle({t.x1:.2f},{t.y1:.2f},{t.z1:.2f}, '
                     f'{t.x2:.2f},{t.y2:.2f},{t.z2:.2f}, '
-                    f'{t.x3:.2f},{t.y3:.2f},{t.z3:.2f}, {hex_str})')
+                    f'{t.x3:.2f},{t.y3:.2f},{t.z3:.2f}, {hex_str}, wireframe={wf_str})')
         code = '\n'.join(lines)
         self.code_editor.delete('1.0', 'end')
         self.code_editor.insert('1.0', code)
@@ -1115,10 +1116,11 @@ class Studio(ctk.CTk):
                 def fmt(n):
                     return f'{n:.4f}f'
                 hex_str = f'0x{t.color:06x}'
+                wf = 'true' if t.wireframe else 'false'
                 lines.append(
                     f'    sprite.addTriangle({fmt(t.x1)},{fmt(t.y1)},{fmt(t.z1)}, '
                     f'{fmt(t.x2)},{fmt(t.y2)},{fmt(t.z2)}, '
-                    f'{fmt(t.x3)},{fmt(t.y3)},{fmt(t.z3)}, {hex_str});')
+                    f'{fmt(t.x3)},{fmt(t.y3)},{fmt(t.z3)}, {hex_str}, {wf});')
             lines.append('}')
             lines.append('')
 
@@ -1129,6 +1131,48 @@ class Studio(ctk.CTk):
         self.export_output.configure(state='disabled')
         self.tab_view.set('Export')
         self._console_log(f'Exported {len(self.sprites)} sprite(s) as C++', 'ok')
+
+    def _import_sprite3d(self):
+        """Import a .sprite3d binary file and add its triangles as a new sprite."""
+        from tkinter import filedialog
+        filepath = filedialog.askopenfilename(
+            title='Import .sprite3d file',
+            filetypes=[('Sprite3D files', '*.sprite3d'), ('All files', '*.*')],
+        )
+        if not filepath:
+            return
+        sprite = Sprite3D.from_sprite3d_file(filepath)
+        if sprite is None:
+            self._console_log(f'Failed to import: {filepath}', 'err')
+            return
+        self.sprites.append(sprite)
+        self._sync_code_from_sprites()
+        self.creator_view.refresh_object_list()
+        self._console_log(
+            f'Imported {sprite.name} ({sprite.get_triangle_count()} triangles)', 'ok')
+
+    def _export_sprite3d(self):
+        """Export the first active sprite as a .sprite3d binary file."""
+        if not self.sprites:
+            self._console_log('No sprites to export.', 'warn')
+            return
+        from tkinter import filedialog
+        sprite = self.sprites[0]
+        name = (sprite.name or 'sprite').replace(' ', '_')
+        filepath = filedialog.asksaveasfilename(
+            title='Export .sprite3d file',
+            defaultextension='.sprite3d',
+            initialfile=f'{name}.sprite3d',
+            filetypes=[('Sprite3D files', '*.sprite3d'), ('All files', '*.*')],
+        )
+        if not filepath:
+            return
+        if sprite.to_sprite3d_file(filepath):
+            self._console_log(
+                f'Exported {name} ({sprite.get_triangle_count()} triangles) to {filepath}',
+                'ok')
+        else:
+            self._console_log(f'Failed to export to {filepath}', 'err')
 
     def _copy_export(self):
         """Copy export output to clipboard."""
