@@ -21,10 +21,6 @@ a = Analysis(
         # customtkinter dynamic imports
         'customtkinter',
         'darkdetect',
-        'PIL',
-        'PIL.Image',
-        'PIL.ImageTk',
-        'PIL.ImageOps',
         # tkinter font module (used by CTkFont)
         'tkinter.font',
         'tkinter.filedialog',
@@ -34,7 +30,7 @@ a = Analysis(
         'views.code_view',
         'views.creator_view',
         'views.export_view',
-        'views.presets_view',
+        'views.library_view',
         'views.property_view',
         'views.settings_view',
     ],

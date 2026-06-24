@@ -1,9 +1,10 @@
+import os
 import tkinter as tk
 import customtkinter as ctk
 
 
-class PresetsView:
-    """Grid of clickable preset cards that load example sprites."""
+class LibraryView:
+    """Scrollable grid of .sprite3d files from the library directory."""
 
     def __init__(self, app, tab):
         self.app = app
@@ -27,33 +28,28 @@ class PresetsView:
         canvas.grid(row=0, column=0, sticky='nsew')
         scrollbar.grid(row=0, column=1, sticky='ns')
 
-        presets = [
-            ('HUMANOID', 'height=1.8', 'humanoid'),
-            ('TREE', 'height=2.0', 'tree'),
-            ('HOUSE', 'w=2.0 h=2.5', 'house'),
-            ('PILLAR', 'h=3.0 r=0.3', 'pillar'),
-            ('WALL SEGMENT', 'custom triangles', 'wall'),
-            ('SCENE', 'multiple objects', 'scene'),
-            ('CRATE', 'simple box', 'crate'),
-            ('CUSTOM TRIS', 'raw triangles', 'custom'),
-            ('ZOMBIE SHAMBLER', 'arms forward', 'zombie_shambler'),
-            ('ZOMBIE CRAWLER', 'hunched pose', 'zombie_crawler'),
-            ('ZOMBIE STALKER', 'tall & eerie', 'zombie_stalker'),
-            ('ZOMBIE HORDE', 'all three', 'zombie_scene'),
-            ('PISTOL', 'compact handgun', 'pistol'),
-            ('RIFLE', 'assault rifle', 'rifle'),
-            ('SHOTGUN', 'pump action', 'shotgun'),
-            ('ROCKET LAUNCHER', 'tube launcher', 'rocket_launcher'),
-            ('CROSSBOW', 'bolt launcher', 'crossbow'),
-            ('BULLET', 'projectile', 'bullet'),
-            ('ARROW', 'projectile', 'arrow'),
-            ('ROCKET', 'projectile', 'rocket'),
-        ]
+        # Discover .sprite3d files in the library directory
+        studio_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        library_dir = os.path.join(studio_dir, 'library')
+        files = []
+        if os.path.isdir(library_dir):
+            for fname in sorted(os.listdir(library_dir)):
+                if fname.endswith('.sprite3d'):
+                    fpath = os.path.join(library_dir, fname)
+                    name = os.path.splitext(fname)[0]
+                    size = os.path.getsize(fpath)
+                    tri_count = size // 52
+                    files.append((name, fpath, tri_count))
 
         scroll_frame.grid_columnconfigure(0, weight=1)
         scroll_frame.grid_columnconfigure(1, weight=1)
 
-        for i, (name, desc, key) in enumerate(presets):
+        if not files:
+            empty = ctk.CTkLabel(scroll_frame, text='No .sprite3d files in library/',
+                                  font=('Share Tech Mono', 11), text_color='#5a6a88')
+            empty.grid(row=0, column=0, columnspan=2, padx=20, pady=40)
+
+        for i, (name, fpath, tri_count) in enumerate(files):
             row = i // 2
             col = i % 2
             btn_frame = ctk.CTkFrame(scroll_frame, corner_radius=2, fg_color='#111622',
@@ -61,17 +57,17 @@ class PresetsView:
             btn_frame.grid(row=row, column=col, padx=4, pady=3, sticky='ew')
             btn_frame.grid_columnconfigure(0, weight=1)
 
-            name_lbl = ctk.CTkLabel(btn_frame, text=name, font=('Share Tech Mono', 11, 'bold'),
+            name_lbl = ctk.CTkLabel(btn_frame, text=name.upper(), font=('Share Tech Mono', 11, 'bold'),
                                      text_color='#c8d8e8')
             name_lbl.grid(row=0, column=0, padx=8, pady=(4, 0), sticky='w')
 
-            desc_lbl = ctk.CTkLabel(btn_frame, text=desc, font=('Share Tech Mono', 9),
+            desc_lbl = ctk.CTkLabel(btn_frame, text=f'{tri_count} triangles', font=('Share Tech Mono', 9),
                                      text_color='#5a6a88')
             desc_lbl.grid(row=1, column=0, padx=8, pady=(0, 4), sticky='w')
 
-            btn_frame.bind('<Button-1>', lambda e, k=key: app._load_preset(k))
-            name_lbl.bind('<Button-1>', lambda e, k=key: app._load_preset(k))
-            desc_lbl.bind('<Button-1>', lambda e, k=key: app._load_preset(k))
+            btn_frame.bind('<Button-1>', lambda e, p=fpath: app._load_library_item(p))
+            name_lbl.bind('<Button-1>', lambda e, p=fpath: app._load_library_item(p))
+            desc_lbl.bind('<Button-1>', lambda e, p=fpath: app._load_library_item(p))
 
             def on_enter(e, f=btn_frame):
                 f.configure(border_color='#4466cc')

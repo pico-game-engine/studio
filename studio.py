@@ -6,13 +6,12 @@ from typing import List, Optional
 import customtkinter as ctk
 
 from helpers.color import hex_to_tk_color
-from helpers.presets import get_preset_code
 from sprite3d import Sprite3D
 from triangle3d import Triangle3D
 from renderer import Renderer
 from views.code_view import CodeView
 from views.creator_view import CreatorView
-from views.presets_view import PresetsView
+from views.library_view import LibraryView
 from views.settings_view import SettingsView
 from views.export_view import ExportView
 from views.property_view import PropertyEditor
@@ -115,7 +114,7 @@ class Studio(ctk.CTk):
 
         self.tab_view.add('Code')
         self.tab_view.add('Creator')
-        self.tab_view.add('Presets')
+        self.tab_view.add('Library')
         self.tab_view.add('Export')
         self.tab_view.add('Settings')
 
@@ -125,7 +124,7 @@ class Studio(ctk.CTk):
 
         CodeView(self, self.tab_view.tab('Code'))
         self.creator_view = CreatorView(self, self.tab_view.tab('Creator'))
-        PresetsView(self, self.tab_view.tab('Presets'))
+        LibraryView(self, self.tab_view.tab('Library'))
         ExportView(self, self.tab_view.tab('Export'))
         SettingsView(self, self.tab_view.tab('Settings'))
 
@@ -676,21 +675,16 @@ class Studio(ctk.CTk):
         self._console_log('Editor cleared.', 'info')
         self.creator_view.refresh_object_list()
 
-    def _load_preset(self, name):
-        """Load a preset into the code editor and run it."""
-        code = get_preset_code(name)
-        if code:
-            self.code_editor.delete('1.0', 'end')
-            self.code_editor.insert('1.0', code)
-            self._run_code()
-
-    def _run_preset_code(self, name):
-        """Load and run a preset by name."""
-        code = get_preset_code(name)
-        if code:
-            self.code_editor.delete('1.0', 'end')
-            self.code_editor.insert('1.0', code)
-            self._run_code()
+    def _load_library_item(self, filepath):
+        """Load a .sprite3d file from the library and add it to the scene."""
+        sprite = Sprite3D.from_sprite3d_file(filepath)
+        if sprite:
+            self.sprites.append(sprite)
+            self._console_log(f'Loaded {sprite.name} ({sprite.get_triangle_count()} triangles)', 'ok')
+            self.creator_view.refresh_object_list()
+            self._sync_code_from_sprites()
+        else:
+            self._console_log(f'Failed to load {filepath}', 'err')
 
     def _set_creator_color(self, color):
         """Set active creator color and update swatch highlights."""
