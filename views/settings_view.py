@@ -31,9 +31,9 @@ class SettingsView:
         checks = [
             ('Wireframe edges', 'wireframe', True),
             ('Solid faces', 'solid', True),
-            ('Show backfaces (debug)', 'backface', False),
+            ('Show backfaces (debug)', 'backface', True),
             ('Ground grid', 'grid', True),
-            ('World axes', 'axes', True),
+            ('World axes', 'axes', False),
             ('Face normals', 'normals', False),
             ('Per-face color', 'color', True),
         ]
@@ -55,18 +55,18 @@ class SettingsView:
         ctk.CTkLabel(light_group, text='Ambient', font=('Share Tech Mono', 10),
                       text_color='#5a6a88').grid(row=1, column=0, padx=8, pady=2, sticky='w')
         app.light_ambient = ctk.CTkSlider(light_group, from_=0, to=100, command=app._update_opts)
-        app.light_ambient.set(30)
+        app.light_ambient.set(100)
         app.light_ambient.grid(row=1, column=1, padx=4, pady=2, sticky='ew')
-        app.lbl_ambient = ctk.CTkLabel(light_group, text='0.30', font=('Share Tech Mono', 10),
+        app.lbl_ambient = ctk.CTkLabel(light_group, text='1.00', font=('Share Tech Mono', 10),
                                          text_color='#4488ff', width=40)
         app.lbl_ambient.grid(row=1, column=2, padx=4, pady=2)
 
         ctk.CTkLabel(light_group, text='Diffuse', font=('Share Tech Mono', 10),
                       text_color='#5a6a88').grid(row=2, column=0, padx=8, pady=2, sticky='w')
         app.light_diffuse = ctk.CTkSlider(light_group, from_=0, to=100, command=app._update_opts)
-        app.light_diffuse.set(70)
+        app.light_diffuse.set(50)
         app.light_diffuse.grid(row=2, column=1, padx=4, pady=2, sticky='ew')
-        app.lbl_diffuse = ctk.CTkLabel(light_group, text='0.70', font=('Share Tech Mono', 10),
+        app.lbl_diffuse = ctk.CTkLabel(light_group, text='0.50', font=('Share Tech Mono', 10),
                                          text_color='#4488ff', width=40)
         app.lbl_diffuse.grid(row=2, column=2, padx=4, pady=2)
 

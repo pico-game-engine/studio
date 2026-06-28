@@ -25,13 +25,13 @@ class Renderer:
         self.opts = {
             'wireframe': True,
             'solid': True,
-            'backface': False,
+            'backface': True,
             'grid': True,
-            'axes': True,
+            'axes': False,
             'normals': False,
             'color': True,
         }
-        self.lighting = {'ambient': 0.3, 'diffuse': 0.7}
+        self.lighting = {'ambient': 1.0, 'diffuse': 0.5}
         self.fov = 60.0
         self._fps = 0
         self._frame_count = 0
