@@ -2,6 +2,8 @@ import os
 import tkinter as tk
 import customtkinter as ctk
 
+from sprite3d import get_library_dir
+
 
 class LibraryView:
     """Scrollable grid of .sprite3d files from the library directory."""
@@ -29,8 +31,7 @@ class LibraryView:
         scrollbar.grid(row=0, column=1, sticky='ns')
 
         # Discover .sprite3d files in the library directory
-        studio_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        library_dir = os.path.join(studio_dir, 'library')
+        library_dir = get_library_dir()
         files = []
         if os.path.isdir(library_dir):
             for fname in sorted(os.listdir(library_dir)):

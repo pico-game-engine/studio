@@ -16,7 +16,9 @@ a = Analysis(
     ['studio.py'],
     pathex=[str(Path('.').resolve())],
     binaries=[],
-    datas=[],
+    datas=[
+        ('library/*.sprite3d', 'library'),
+    ],
     hiddenimports=[
         # customtkinter dynamic imports
         'customtkinter',

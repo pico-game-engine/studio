@@ -1,5 +1,7 @@
 import math
+import os
 import struct
+import sys
 from typing import List, Optional, Tuple
 from helpers.color import DEFAULT_COLOR, shade_tint, rgb565_to_rgb888, rgb888_to_rgb565
 from triangle3d import Triangle3D
@@ -8,6 +10,15 @@ MAX_TRIANGLES_PER_SPRITE = 1024 * 16
 
 # 9 floats + bool + 3pad + float + bool + 1pad + uint16 + bool + 3pad = 52 bytes
 _TRI3D_STRUCT = struct.Struct('<9f B 3x f B x H B 3x')
+
+
+def get_library_dir() -> str:
+    """Return path to the library directory. Works in dev and PyInstaller bundles."""
+    try:
+        base = sys._MEIPASS
+    except AttributeError:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, 'library')
 
 
 class Sprite3D:

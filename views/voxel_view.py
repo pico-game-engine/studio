@@ -5,6 +5,7 @@ import tkinter as tk
 import customtkinter as ctk
 from helpers.voxel_grid import VoxelGrid
 from helpers.color import hex_to_tk_color
+from sprite3d import get_library_dir
 
 
 FACES = {
@@ -558,7 +559,7 @@ class VoxelView:
         import os
         path = filedialog.askopenfilename(
             filetypes=[('Sprite3D files', '*.sprite3d')],
-            initialdir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'library'),
+            initialdir=get_library_dir(),
             title='Import .sprite3d to voxels')
         if not path:
             return
@@ -616,7 +617,7 @@ class VoxelView:
         path = filedialog.asksaveasfilename(
             defaultextension='.sprite3d',
             filetypes=[('Sprite3D files', '*.sprite3d')],
-            initialdir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'library'),
+            initialdir=get_library_dir(),
             title='Save voxel sprite')
         if not path:
             return
