@@ -2,6 +2,11 @@ from typing import Tuple
 
 DEFAULT_COLOR = 0x00ff88
 
+SAMPLE_COLORS = [
+    0xffcc99, 0x4466aa, 0x334488, 0x2d6e2d, 0x5c3d11,
+    0xd4b896, 0x8b2020, 0xccbbaa, 0xaa8855, 0x00ff88,
+    0xff4455, 0x44aaff, 0xffcc00, 0x666666, 0x111111
+]
 
 def hex_to_rgb(hex_val: int) -> Tuple[int, int, int]:
     """Convert hex color int to (r, g, b) tuple."""
