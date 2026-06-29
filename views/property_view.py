@@ -2,7 +2,8 @@ import math
 import customtkinter as ctk
 from typing import Callable
 
-from helpers.color import hex_to_tk_color
+import tkinter as tk
+from helpers.color import hex_to_tk_color, SAMPLE_COLORS
 
 
 class PropertyEditor(ctk.CTkToplevel):
@@ -19,10 +20,10 @@ class PropertyEditor(ctk.CTkToplevel):
         self.geometry('480x520')
         self.minsize(400, 400)
         self.configure(fg_color='#0a1a10')
-
         self._build()
 
     def _build(self):
+        """Build the property editor UI."""
         """Build the property editor UI."""
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
@@ -97,14 +98,9 @@ class PropertyEditor(ctk.CTkToplevel):
                       text_color='#5a6a88', width=42).pack(side='left')
 
         # Color swatch palette
-        sample_colors = [
-            0xffcc99, 0x4466aa, 0x334488, 0x2d6e2d, 0x5c3d11,
-            0xd4b896, 0x8b2020, 0xccbbaa, 0xaa8855, 0x00ff88,
-            0xff4455, 0x44aaff, 0xffcc00, 0x666666, 0x111111
-        ]
         swatch_frame = ctk.CTkFrame(color_frame, fg_color='transparent')
         swatch_frame.pack(side='left', padx=4)
-        for col in sample_colors:
+        for col in SAMPLE_COLORS:
             sw = ctk.CTkButton(swatch_frame, text='', width=16, height=16, corner_radius=2,
                                 fg_color=hex_to_tk_color(col),
                                 hover_color=hex_to_tk_color(col),
@@ -123,13 +119,29 @@ class PropertyEditor(ctk.CTkToplevel):
         ctk.CTkLabel(face_header, text='FACES', font=('Share Tech Mono', 11, 'bold'),
                       text_color='#4466cc').pack(side='left')
 
+        self.page_size = 64
+        self.face_page = 0
+        self.face_rows = []
+
+        page_bar = ctk.CTkFrame(face_header, fg_color='transparent')
+        page_bar.pack(side='right')
+        self.page_prev = ctk.CTkButton(page_bar, text='<', width=28, height=20,
+                                        font=('Share Tech Mono', 10),
+                                        command=self._prev_page)
+        self.page_prev.pack(side='left', padx=1)
+        self.page_label = ctk.CTkLabel(page_bar, text='', font=('Share Tech Mono', 9),
+                                        text_color='#4488ff', width=30)
+        self.page_label.pack(side='left', padx=1)
+        self.page_next = ctk.CTkButton(page_bar, text='>', width=28, height=20,
+                                        font=('Share Tech Mono', 10),
+                                        command=self._next_page)
+        self.page_next.pack(side='left', padx=1)
+
         self.face_scroll = ctk.CTkScrollableFrame(self, corner_radius=0, fg_color='transparent')
         self.face_scroll.grid(row=3, column=0, sticky='nsew', padx=8, pady=4)
         self.face_scroll.grid_columnconfigure(1, weight=1)
 
-        self.face_rows = []
-        for idx, tri in enumerate(self.sprite.triangles):
-            self._add_face_row(idx, tri)
+        self._rebuild_face_list()
 
     def _add_face_row(self, idx, tri):
         """Add a row for an individual face/triangle."""
@@ -152,25 +164,23 @@ class PropertyEditor(ctk.CTkToplevel):
                                    fg_color=hex_to_tk_color(tri.color),
                                    hover_color=hex_to_tk_color(tri.color))
         color_btn.grid(row=0, column=2, padx=4, pady=3, sticky='e')
+        row_frame._color_btn = color_btn
 
-        picker_frame = ctk.CTkFrame(row_frame, fg_color='transparent')
-        picker_frame.grid(row=0, column=3, padx=(0, 6), pady=2, sticky='e')
-        for col in [
-            0xffcc99, 0x4466aa, 0x334488, 0x2d6e2d, 0x5c3d11,
-            0xd4b896, 0x8b2020, 0xccbbaa, 0xaa8855, 0x00ff88,
-            0xff4455, 0x44aaff, 0xffcc00, 0x666666, 0x111111
-        ]:
-            def make_face_setter(t=tri, b=color_btn, c=col):
-                def setter():
-                    t.color = c
-                    b.configure(fg_color=hex_to_tk_color(c))
-                    self._on_change()
-                return setter
-            sw = ctk.CTkButton(picker_frame, text='', width=10, height=10, corner_radius=1,
-                                fg_color=hex_to_tk_color(col),
-                                hover_color=hex_to_tk_color(col),
-                                command=make_face_setter())
-            sw.pack(side='left', padx=1)
+        picker_canvas = tk.Canvas(row_frame, width=195, height=12, bg='#111622',
+                                   highlightthickness=0, cursor='hand2')
+        picker_canvas.grid(row=0, column=3, padx=(0, 6), pady=2, sticky='e')
+        for ci, col in enumerate(SAMPLE_COLORS):
+            x = ci * 13 + 1
+            picker_canvas.create_rectangle(x, 1, x + 10, 11,
+                                           fill=hex_to_tk_color(col), outline='')
+
+        def on_picker_click(event, t=tri, b=color_btn):
+            ci = min(max((event.x - 1) // 13, 0), len(SAMPLE_COLORS) - 1)
+            c = SAMPLE_COLORS[ci]
+            t.color = c
+            b.configure(fg_color=hex_to_tk_color(c))
+            self._on_change()
+        picker_canvas.bind('<Button-1>', on_picker_click)
 
         self.face_rows.append(row_frame)
 
@@ -178,17 +188,15 @@ class PropertyEditor(ctk.CTkToplevel):
         """Apply a uniform color to all triangles in the sprite."""
         for tri in self.sprite.triangles:
             tri.color = color
-        # Refresh face swatches
-        self._refresh_face_swatches()
+        for row in self.face_rows:
+            btn = getattr(row, '_color_btn', None)
+            if btn:
+                btn.configure(fg_color=hex_to_tk_color(color))
         self._on_change()
 
     def _refresh_face_swatches(self):
         """Rebuild face list to reflect new colors."""
-        for row in self.face_rows:
-            row.destroy()
-        self.face_rows.clear()
-        for idx, tri in enumerate(self.sprite.triangles):
-            self._add_face_row(idx, tri)
+        self._rebuild_face_list()
 
     def _on_change(self):
         """Apply property changes to the sprite and notify the app."""
@@ -204,5 +212,34 @@ class PropertyEditor(ctk.CTkToplevel):
         self.scale_lbl.configure(text=f'{self.sprite.scale_factor:.2f}')
         self.rot_lbl.configure(text=f'{self.sprite.rotation_y * 180 / math.pi:.0f}')
 
-        if self.on_update:
-            self.on_update(self.sprite)
+    def _rebuild_face_list(self):
+        """Clear and re-render faces for the current page."""
+        for row in self.face_rows:
+            row.destroy()
+        self.face_rows.clear()
+
+        total = len(self.sprite.triangles)
+        total_pages = max(1, (total + self.page_size - 1) // self.page_size)
+        start = self.face_page * self.page_size
+        end = min(start + self.page_size, total)
+
+        for idx in range(start, end):
+            tri = self.sprite.triangles[idx]
+            self._add_face_row(idx, tri)
+
+        self.page_label.configure(text=f'{self.face_page + 1}/{total_pages}')
+        self.page_prev.configure(state='normal' if self.face_page > 0 else 'disabled')
+        self.page_next.configure(state='normal' if self.face_page + 1 < total_pages else 'disabled')
+
+    def _prev_page(self):
+        """Go to previous page of faces."""
+        if self.face_page > 0:
+            self.face_page -= 1
+            self._rebuild_face_list()
+
+    def _next_page(self):
+        """Go to next page of faces."""
+        total_pages = max(1, (len(self.sprite.triangles) + self.page_size - 1) // self.page_size)
+        if self.face_page + 1 < total_pages:
+            self.face_page += 1
+            self._rebuild_face_list()

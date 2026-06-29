@@ -1,8 +1,11 @@
 """Pico Game Engine Studio"""
 
+import json
 import math
+import os
 import tkinter as tk
 from typing import List, Optional
+from tkinter import filedialog
 import customtkinter as ctk
 
 from helpers.color import hex_to_tk_color
@@ -12,6 +15,7 @@ from renderer import Renderer
 from views.code_view import CodeView
 from views.creator_view import CreatorView
 from views.library_view import LibraryView
+from views.voxel_view import VoxelView
 from views.settings_view import SettingsView
 from views.export_view import ExportView
 from views.property_view import PropertyEditor
@@ -45,9 +49,12 @@ class Studio(ctk.CTk):
 
         self.palette_mode: Optional[str] = None
 
+        self.settings_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'studio_config.json')
+
         self._build_ui()
         self._bind_events()
         self._init_renderer()
+        self._load_settings()
 
     def _build_ui(self):
         """Build the main layout: header, viewport, panel, camera bar."""
@@ -115,6 +122,7 @@ class Studio(ctk.CTk):
         self.tab_view.add('Code')
         self.tab_view.add('Creator')
         self.tab_view.add('Library')
+        self.tab_view.add('Voxels')
         self.tab_view.add('Export')
         self.tab_view.add('Settings')
 
@@ -125,6 +133,7 @@ class Studio(ctk.CTk):
         CodeView(self, self.tab_view.tab('Code'))
         self.creator_view = CreatorView(self, self.tab_view.tab('Creator'))
         LibraryView(self, self.tab_view.tab('Library'))
+        self.voxel_view = VoxelView(self, self.tab_view.tab('Voxels'))
         ExportView(self, self.tab_view.tab('Export'))
         SettingsView(self, self.tab_view.tab('Settings'))
 
@@ -166,10 +175,13 @@ class Studio(ctk.CTk):
     def _bind_events(self):
         """Bind mouse and keyboard event handlers."""
         self.canvas_3d.bind('<Button-1>', self._canvas_mouse_down)
+        self.canvas_3d.bind('<Button-2>', self._canvas_right_down)
+        self.canvas_3d.bind('<Button-3>', self._canvas_right_down)
         self.canvas_3d.bind('<B1-Motion>', self._canvas_orbit_drag)
         self.canvas_3d.bind('<Control-B1-Motion>', self._canvas_pan_drag)
         self.canvas_3d.bind('<Command-B1-Motion>', self._canvas_pan_drag)
         self.canvas_3d.bind('<ButtonRelease-1>', self._canvas_mouse_up)
+        self.canvas_3d.bind('<ButtonRelease-3>', self._canvas_mouse_up)
         self.canvas_3d.bind('<Double-Button-1>', self._canvas_double_click)
         self.canvas_3d.bind('<MouseWheel>', self._canvas_wheel)
         # Linux scroll wheel support (Button-4 = up, Button-5 = down)
@@ -181,6 +193,7 @@ class Studio(ctk.CTk):
         self.bind('<Control-Return>', lambda e: self._run_code())
         self.bind('<Control-r>', lambda e: self._run_code())
         self.bind('<Key>', self._key_press)
+        self.protocol('WM_DELETE_WINDOW', self._on_close)
 
         self.code_editor.bind('<Control-Return>', lambda e: self._run_code())
 
@@ -310,7 +323,13 @@ class Studio(ctk.CTk):
         self._update_cam_info()
 
     def _canvas_mouse_down(self, e):
-        """Start orbit drag on canvas, or place palette object."""
+        """Start orbit drag on canvas, or place palette object, or voxel paint."""
+        # Voxel paint mode (from Voxels tab)
+        if hasattr(self, 'voxel_view') and self.voxel_view.voxel_paint_active:
+            ray = self._compute_ray(e.x, e.y)
+            if ray:
+                self.voxel_view.world_ray_place(ray[0], ray[1], erase=False)
+            return
         if self.palette_mode:
             W = self.canvas_3d.winfo_width()
             H = self.canvas_3d.winfo_height()
@@ -357,6 +376,21 @@ class Studio(ctk.CTk):
                         world_x = cx + dx_w
                         world_z = cz + dz_final
                         self._place_palette_object(world_x, world_z)
+            return
+        self._mouse_down = True
+        self._mouse_x = e.x
+        self._mouse_y = e.y
+
+    def _canvas_right_down(self, e):
+        """Right-click on canvas: erase voxel in paint mode, otherwise orbit."""
+        if hasattr(self, 'voxel_view') and self.voxel_view.voxel_paint_active:
+            ray = self._compute_ray(e.x, e.y)
+            if ray:
+                result = self.voxel_view.world_ray_place(ray[0], ray[1], erase=True)
+                if not result:
+                    self._console_log('Right-click: no voxel hit.', 'warn')
+            else:
+                self._console_log('Right-click: ray miss.', 'warn')
             return
         self._mouse_down = True
         self._mouse_x = e.x
@@ -583,7 +617,7 @@ class Studio(ctk.CTk):
         self._sync_code_from_sprites()
 
     def _update_opts(self, *args):
-        """Sync UI controls to renderer options."""
+        """Sync UI controls to renderer options and save settings."""
         if not self.renderer:
             return
         for key, var in self.check_vars.items():
@@ -598,6 +632,56 @@ class Studio(ctk.CTk):
         self.lbl_fov.configure(text=f'{int(self.renderer.fov)}')
 
         self._update_cam_info()
+        self._save_settings()
+
+    def _save_settings(self):
+        """Save current settings to JSON config file."""
+        if not hasattr(self, 'check_vars'):
+            return
+        data = {
+            'render_opts': {key: var.get() for key, var in self.check_vars.items()},
+            'light_ambient': self.light_ambient.get(),
+            'light_diffuse': self.light_diffuse.get(),
+            'fov': self.cam_fov.get(),
+            'cam_near': self.cam_near.get() if hasattr(self, 'cam_near') else '0.1',
+        }
+        try:
+            with open(self.settings_path, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
+
+    def _load_settings(self):
+        """Load settings from JSON config file and apply to UI controls."""
+        if not os.path.exists(self.settings_path):
+            return
+        try:
+            with open(self.settings_path, 'r') as f:
+                data = json.load(f)
+        except Exception:
+            return
+
+        if 'render_opts' in data and hasattr(self, 'check_vars'):
+            for key, val in data['render_opts'].items():
+                if key in self.check_vars:
+                    self.check_vars[key].set(val)
+
+        if 'light_ambient' in data and hasattr(self, 'light_ambient'):
+            self.light_ambient.set(data['light_ambient'])
+        if 'light_diffuse' in data and hasattr(self, 'light_diffuse'):
+            self.light_diffuse.set(data['light_diffuse'])
+        if 'fov' in data and hasattr(self, 'cam_fov'):
+            self.cam_fov.set(data['fov'])
+        if 'cam_near' in data and hasattr(self, 'cam_near'):
+            self.cam_near.delete(0, 'end')
+            self.cam_near.insert(0, str(data['cam_near']))
+
+        self._update_opts()
+
+    def _on_close(self):
+        """Save settings and destroy window."""
+        self._save_settings()
+        self.destroy()
 
     def _console_log(self, msg, cls='info'):
         """Write a message to the console with color coding."""
@@ -674,6 +758,10 @@ class Studio(ctk.CTk):
         self.tri_badge.configure(text='0 triangles', text_color='#4488ff')
         self._console_log('Editor cleared.', 'info')
         self.creator_view.refresh_object_list()
+        if hasattr(self, 'voxel_view'):
+            self.voxel_view.grid.clear()
+            self.voxel_view._redraw()
+            self.voxel_view._sync_sprite_to_viewport()
 
     def _load_library_item(self, filepath):
         """Load a .sprite3d file from the library and add it to the scene."""
@@ -683,6 +771,7 @@ class Studio(ctk.CTk):
             self._console_log(f'Loaded {sprite.name} ({sprite.get_triangle_count()} triangles)', 'ok')
             self.creator_view.refresh_object_list()
             self._sync_code_from_sprites()
+
         else:
             self._console_log(f'Failed to load {filepath}', 'err')
 
@@ -785,10 +874,10 @@ class Studio(ctk.CTk):
         keep = [True] * len(tagged)
 
         # Pass 1: opposing coplanar faces
-        for i in range(len(tagged)):
+        for i, item in enumerate(tagged):
             if not keep[i]:
                 continue
-            t1, src1 = tagged[i]
+            t1, src1 = item
             for j in range(i + 1, len(tagged)):
                 if not keep[j]:
                     continue
@@ -801,20 +890,20 @@ class Studio(ctk.CTk):
                     break
 
         # Pass 2: volume containment
-        for i in range(len(tagged)):
+        for i, item in enumerate(tagged):
             if not keep[i]:
                 continue
-            t, src = tagged[i]
+            t, src = item
             cx, cy, cz = t.get_center()
             for j, tris in enumerate(sprite_tris):
                 if j == src:
                     continue
                 if self._point_inside_mesh(cx, cy, cz, tris):
-                    keep[i] = False
+                    keep[i] = False 
                     break
 
         # Keep survivors only
-        visible = [tagged[i][0] for i in range(len(tagged)) if keep[i]]
+        visible = [t for i, (t, _) in enumerate(tagged) if keep[i]]
         removed = len(tagged) - len(visible)
 
         if not visible:
@@ -896,23 +985,23 @@ class Studio(ctk.CTk):
 
         return merged
 
-    @staticmethod
+    @staticmethod 
     def _quad_to_tris(axis, u0, u1, v0, v1, fixed, min_x, min_y, min_z, vx, vy, vz, color):
         """Convert a merged quad (in voxel indices) into two world-space triangles."""
         # Voxel to world
         def world(axis, fixed_val, u_val, v_val):
             if axis == 0:    # +x: face at x = fixed+1
                 return (min_x + (fixed_val + 1) * vx, min_y + u_val * vy, min_z + v_val * vz)
-            elif axis == 1:  # -x: face at x = fixed
+            if axis == 1:  # -x: face at x = fixed
                 return (min_x + fixed_val * vx, min_y + u_val * vy, min_z + v_val * vz)
-            elif axis == 2:  # +y: face at y = fixed+1
+            if axis == 2:  # +y: face at y = fixed+1
                 return (min_x + u_val * vx, min_y + (fixed_val + 1) * vy, min_z + v_val * vz)
-            elif axis == 3:  # -y: face at y = fixed
+            if axis == 3:  # -y: face at y = fixed
                 return (min_x + u_val * vx, min_y + fixed_val * vy, min_z + v_val * vz)
-            elif axis == 4:  # +z: face at z = fixed+1
+            if axis == 4:  # +z: face at z = fixed+1
                 return (min_x + u_val * vx, min_y + v_val * vy, min_z + (fixed_val + 1) * vz)
-            else:            # -z: face at z = fixed
-                return (min_x + u_val * vx, min_y + v_val * vy, min_z + fixed_val * vz)
+            # -z: face at z = fixed
+            return (min_x + u_val * vx, min_y + v_val * vy, min_z + fixed_val * vz)
 
         # World-space corners
         p00 = world(axis, fixed, u0, v0)
@@ -1128,7 +1217,6 @@ class Studio(ctk.CTk):
 
     def _import_sprite3d(self):
         """Import a .sprite3d binary file and add its triangles as a new sprite."""
-        from tkinter import filedialog
         filepath = filedialog.askopenfilename(
             title='Import .sprite3d file',
             filetypes=[('Sprite3D files', '*.sprite3d'), ('All files', '*.*')],
@@ -1142,6 +1230,7 @@ class Studio(ctk.CTk):
         self.sprites.append(sprite)
         self._sync_code_from_sprites()
         self.creator_view.refresh_object_list()
+
         self._console_log(
             f'Imported {sprite.name} ({sprite.get_triangle_count()} triangles)', 'ok')
 
@@ -1150,7 +1239,6 @@ class Studio(ctk.CTk):
         if not self.sprites:
             self._console_log('No sprites to export.', 'warn')
             return
-        from tkinter import filedialog
         sprite = self.sprites[0]
         name = (sprite.name or 'sprite').replace(' ', '_')
         filepath = filedialog.asksaveasfilename(

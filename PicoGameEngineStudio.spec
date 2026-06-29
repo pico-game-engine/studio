@@ -27,10 +27,12 @@ a = Analysis(
         # Our own modules (PyInstaller sometimes misses package-relative imports)
         'helpers.color',
         'helpers.presets',
+        'helpers.voxel_grid',
         'views.code_view',
         'views.creator_view',
         'views.export_view',
         'views.library_view',
+        'views.voxel_view',
         'views.property_view',
         'views.settings_view',
     ],
