@@ -144,38 +144,86 @@ class PropertyEditor(ctk.CTkToplevel):
         self._rebuild_face_list()
 
     def _add_face_row(self, idx, tri):
-        """Add a row for an individual face/triangle."""
+        """Add a row with sliders and text entries for x,y,z position and color."""
         row_frame = ctk.CTkFrame(self.face_scroll, corner_radius=0, fg_color='#111622',
                                   border_color='#1a2530', border_width=1)
         row_frame.grid(row=len(self.face_rows), column=0, sticky='ew', pady=1)
         row_frame.grid_columnconfigure(1, weight=1)
-        row_frame.grid_columnconfigure(3, weight=0)
+        row_frame.grid_columnconfigure(4, weight=1)
 
         lbl = ctk.CTkLabel(row_frame, text=f'#{idx}', font=('Share Tech Mono', 9),
                             text_color='#5a6a88', width=22)
-        lbl.grid(row=0, column=0, padx=(6, 2), pady=3, sticky='w')
+        lbl.grid(row=0, column=0, rowspan=2, padx=(6, 2), pady=3, sticky='nw')
 
         cx, cy, cz = tri.get_center()
-        pos_lbl = ctk.CTkLabel(row_frame, text=f'({cx:.2f}, {cy:.2f}, {cz:.2f})',
-                                font=('Share Tech Mono', 7), text_color='#3a5a48', width=100)
-        pos_lbl.grid(row=0, column=1, padx=2, pady=3, sticky='w')
 
-        color_btn = ctk.CTkButton(row_frame, text='', width=16, height=16, corner_radius=2,
+        def make_axis(val, axis, col, lbl_text):
+            """Create a slider + entry pair for one axis."""
+            var = ctk.DoubleVar(value=val)
+            slider = ctk.CTkSlider(row_frame, from_=-4, to=4, variable=var,
+                                    width=80, height=14,
+                                    command=lambda v: self._apply_face_move(tri, axis, var, entry_var))
+            slider.grid(row=0, column=col, padx=(2, 4), pady=(4, 0), sticky='ew')
+
+            entry_var = ctk.StringVar(value=f'{val:.3f}')
+            entry = ctk.CTkEntry(row_frame, textvariable=entry_var, width=48, height=20,
+                                  font=('Share Tech Mono', 8),
+                                  fg_color='#0a1510', border_color='#1a2530',
+                                  text_color='#c8d8e8')
+            entry.grid(row=1, column=col, padx=(2, 4), pady=(0, 4), sticky='w')
+
+            def apply_entry(*_):
+                try:
+                    new_val = float(entry_var.get())
+                except ValueError:
+                    entry_var.set(f'{val:.3f}')
+                    return
+                old = tri.get_center()
+                old_vals = {'x': old[0], 'y': old[1], 'z': old[2]}
+                delta = new_val - old_vals[axis]
+                if abs(delta) < 0.001:
+                    return
+                tri.x1 += delta if axis == 'x' else 0
+                tri.y1 += delta if axis == 'y' else 0
+                tri.z1 += delta if axis == 'z' else 0
+                tri.x2 += delta if axis == 'x' else 0
+                tri.y2 += delta if axis == 'y' else 0
+                tri.z2 += delta if axis == 'z' else 0
+                tri.x3 += delta if axis == 'x' else 0
+                tri.y3 += delta if axis == 'y' else 0
+                tri.z3 += delta if axis == 'z' else 0
+                new_c = tri.get_center()
+                c_vals = {'x': new_c[0], 'y': new_c[1], 'z': new_c[2]}
+                var.set(c_vals[axis])
+                entry_var.set(f'{c_vals[axis]:.3f}')
+                self.on_update(self.sprite)
+
+            entry.bind('<Return>', apply_entry)
+            entry.bind('<FocusOut>', apply_entry)
+
+        make_axis(cx, 'x', 1, 'X')
+        make_axis(cy, 'y', 2, 'Y')
+        make_axis(cz, 'z', 3, 'Z')
+
+        # Color button + picker stacked vertically on the right
+        color_frame = ctk.CTkFrame(row_frame, fg_color='transparent')
+        color_frame.grid(row=0, column=5, rowspan=2, padx=(2, 2), pady=2, sticky='e')
+        color_btn = ctk.CTkButton(color_frame, text='', width=14, height=14, corner_radius=2,
                                    fg_color=hex_to_tk_color(tri.color),
                                    hover_color=hex_to_tk_color(tri.color))
-        color_btn.grid(row=0, column=2, padx=4, pady=3, sticky='e')
+        color_btn.pack(side='top', pady=(2, 0))
         row_frame._color_btn = color_btn
 
-        picker_canvas = tk.Canvas(row_frame, width=195, height=12, bg='#111622',
+        picker_canvas = tk.Canvas(color_frame, width=110, height=12, bg='#111622',
                                    highlightthickness=0, cursor='hand2')
-        picker_canvas.grid(row=0, column=3, padx=(0, 6), pady=2, sticky='e')
+        picker_canvas.pack(side='top', pady=(2, 0))
         for ci, col in enumerate(SAMPLE_COLORS):
-            x = ci * 13 + 1
-            picker_canvas.create_rectangle(x, 1, x + 10, 11,
+            x = ci * 8 + 1
+            picker_canvas.create_rectangle(x, 1, x + 6, 11,
                                            fill=hex_to_tk_color(col), outline='')
 
         def on_picker_click(event, t=tri, b=color_btn):
-            ci = min(max((event.x - 1) // 13, 0), len(SAMPLE_COLORS) - 1)
+            ci = min(max((event.x - 1) // 8, 0), len(SAMPLE_COLORS) - 1)
             c = SAMPLE_COLORS[ci]
             t.color = c
             b.configure(fg_color=hex_to_tk_color(c))
@@ -183,6 +231,28 @@ class PropertyEditor(ctk.CTkToplevel):
         picker_canvas.bind('<Button-1>', on_picker_click)
 
         self.face_rows.append(row_frame)
+
+    def _apply_face_move(self, tri, axis, var, entry_var):
+        """Translate a face along one axis from a slider value, update entry."""
+        new_val = var.get()
+        old = tri.get_center()
+        old_vals = {'x': old[0], 'y': old[1], 'z': old[2]}
+        delta = new_val - old_vals[axis]
+        if abs(delta) < 0.001:
+            return
+        tri.x1 += delta if axis == 'x' else 0
+        tri.y1 += delta if axis == 'y' else 0
+        tri.z1 += delta if axis == 'z' else 0
+        tri.x2 += delta if axis == 'x' else 0
+        tri.y2 += delta if axis == 'y' else 0
+        tri.z2 += delta if axis == 'z' else 0
+        tri.x3 += delta if axis == 'x' else 0
+        tri.y3 += delta if axis == 'y' else 0
+        tri.z3 += delta if axis == 'z' else 0
+        new_c = tri.get_center()
+        c_vals = {'x': new_c[0], 'y': new_c[1], 'z': new_c[2]}
+        entry_var.set(f'{c_vals[axis]:.3f}')
+        self.on_update(self.sprite)
 
     def _set_overall_color(self, color):
         """Apply a uniform color to all triangles in the sprite."""
@@ -211,6 +281,7 @@ class PropertyEditor(ctk.CTkToplevel):
         self.pos_z_lbl.configure(text=f'{self.sprite.position["z"]:.2f}')
         self.scale_lbl.configure(text=f'{self.sprite.scale_factor:.2f}')
         self.rot_lbl.configure(text=f'{self.sprite.rotation_y * 180 / math.pi:.0f}')
+        self.on_update(self.sprite)
 
     def _rebuild_face_list(self):
         """Clear and re-render faces for the current page."""
